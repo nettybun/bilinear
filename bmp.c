@@ -8,7 +8,6 @@
 #define BITS_PER_PIXEL 24
 #define NUM_PLANE 1
 #define COMPRESSION 0
-#define BITS_PER_BYTE 8
 
 // return 0 if the header is invalid
 // return 1 if the header is valid
@@ -59,7 +58,7 @@ BMP_Image* BMP_open(const char* filename) {
   img->data_size = (img->header).size - sizeof(BMP_Header);
   img->width = (img->header).width;
   img->height = (img->header).height;
-  img->bytes_per_pixel = (img->header).bits / BITS_PER_BYTE;
+  img->bytes_per_pixel = (img->header).bits / 8;  // Bits per byte
   img->data = malloc(sizeof(unsigned char) * (img->data_size));
   if ((img->data) == NULL) {
     return cleanUp(fptr, img);

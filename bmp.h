@@ -18,7 +18,7 @@ typedef struct {
   uint16_t planes;            // Number of color planes
   uint16_t bits;              // Bits per pixel
   uint32_t compression;       // Compression type
-  uint32_t imagesize;         // Image size in bytes
+  uint32_t imagesize;         // Compressed image (bytes); 0 if compression = 0
   uint32_t xresolution;       // Pixels per meter
   uint32_t yresolution;       // Pixels per meter
   uint32_t ncolours;          // Number of colors
