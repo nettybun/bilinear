@@ -5,7 +5,7 @@
 // tell compiler not to add space between the attributes
 #pragma pack(1)
 
-// a BMP file has a header (54 bytes) and data
+// a BMP file has a header (54 bytes) and pixels
 typedef struct {
   uint16_t type;              // Magic identifier
   uint32_t size;              // File size in bytes
@@ -27,11 +27,10 @@ typedef struct {
 
 typedef struct {
   BMP_Header header;
-  unsigned int data_size;
+  unsigned int number_pixels;
   unsigned int width;
   unsigned int height;
-  unsigned int bytes_per_pixel;
-  uint8_t* data;
+  uint32_t* pixels;
 } BMP_Image;
 
 // open a BMP image given a filename

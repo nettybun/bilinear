@@ -5,6 +5,7 @@
 
 // correct values for the header
 #define MAGIC_VALUE 0X4D42
+// one pixel is a uint32_t so the last 8bits are empty (untrusted)
 #define BITS_PER_PIXEL 24
 #define NUM_PLANE 1
 #define COMPRESSION 0
@@ -33,7 +34,7 @@ BMP_Image* cleanUp(FILE* fptr, BMP_Image* img) {
   if (fptr != NULL) {
     fclose(fptr);
   }
-  free(img->data);
+  free(img->pixels);
   free(img);
   return NULL;
 }
@@ -56,21 +57,32 @@ BMP_Image* BMP_open(const char* filename) {
   if (checkHeader(&(img->header)) == 0) {
     return cleanUp(fptr, img);
   }
-  img->data_size = (img->header).size - sizeof(BMP_Header);
+  // TODO: diagrams show padding bytes for BMP? numbers are wrong...
+  int bytes_per_pixel = (img->header).bits / BITS_PER_BYTE;
+  int data_bytes = ((img->header).size - sizeof(BMP_Header)) / bytes_per_pixel;
+  printf("Bytes per pixel: %d\n", bytes_per_pixel);
+  printf("Bytes of data after header: %d\n", data_bytes);
   img->width = (img->header).width;
   img->height = (img->header).height;
-  img->bytes_per_pixel = (img->header).bits / BITS_PER_BYTE;
-  img->data = malloc(sizeof(unsigned char) * (img->data_size));
-  if ((img->data) == NULL) {
+  img->number_pixels = img->width * img->height;
+  img->pixels = malloc(sizeof(uint8_t) * bytes_per_pixel * img->number_pixels);
+  printf("Resolution: %d x %d = %d\n", img->width, img->height, img->number_pixels);
+  if ((img->pixels) == NULL) {
     return cleanUp(fptr, img);
   }
-  if (fread(img->data, sizeof(char), img->data_size, fptr) != (img->data_size)) {
+  int n;
+  n = fread(img->pixels, sizeof(uint8_t) * bytes_per_pixel, img->number_pixels, fptr);
+  if (n != (img->number_pixels)) {
+    printf("Failed loading pixels. Read %d instead of %d\n", n, img->number_pixels);
     return cleanUp(fptr, img);
   }
+  // this doesn't need to use uint32_t since it's just a safety check
   char onebyte;
   if (fread(&onebyte, sizeof(char), 1, fptr) != 0) {
-    // not at the of the file but the file still has data
-    return cleanUp(fptr, img);
+    printf("Warning: Failed safety check. Not at end of file after reading pixels\n");
+    // file still has pixels so header was wrong
+    // continue anyway
+    // return cleanUp(fptr, img);
   }
   fclose(fptr);
   return img;
@@ -87,7 +99,7 @@ int BMP_save(const BMP_Image* img, const char* filename) {
     fclose(fptr);
     return 0;
   }
-  if (fwrite(img->data, sizeof(char), img->data_size, fptr) != (img->data_size)) {
+  if (fwrite(img->pixels, sizeof(uint32_t), img->number_pixels, fptr) != (img->number_pixels)) {
     fclose(fptr);
     return 0;
   }
@@ -96,6 +108,6 @@ int BMP_save(const BMP_Image* img, const char* filename) {
 }
 
 void BMP_destroy(BMP_Image* img) {
-  free(img->data);
+  free(img->pixels);
   free(img);
 }
