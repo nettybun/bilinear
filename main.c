@@ -4,18 +4,22 @@
 
 #include "bmp.h"
 
-// typedef struct {
-//   uint32_t* pixels;
-//   unsigned int w;
-//   unsigned int h;
-// } image_t;
-
 // n as 0 gets the LAST (RIGHTMOST) byte. n as 3 is the FIRST (LEFTMOST) byte.
 #define getByte(value, n) (value >> (n * 8) & 0xFF)
 
-// uint32_t getpixel(image_t* image, unsigned int x, unsigned int y) {
-//   return image->pixels[(y * image->w) + x];
-// }
+uint32_t getpixel(BMP_Image* img, unsigned int x, unsigned int y) {
+  uint8_t* d = img->data;
+  int pxl = ((y * img->width) + x) * 3;
+  uint32_t pixel = d[pxl] << 24 | d[pxl + 1] << 16 | d[pxl + 2] << 8 | 0;
+  return pixel;
+}
+
+void putpixel(BMP_Image* img, unsigned int x, unsigned int y, uint32_t color) {
+  int pxl = ((y * img->width) + x) * 3;
+  img->data[pxl] = getByte(color, 3);
+  img->data[pxl + 1] = getByte(color, 2);
+  img->data[pxl + 2] = getByte(color, 1);
+}
 
 // float lerp(float s, float e, float t) {
 //   return s + (e - s) * t;
@@ -23,10 +27,6 @@
 
 // float blerp(float c00, float c10, float c01, float c11, float tx, float ty) {
 //   return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
-// }
-
-// void putpixel(image_t* image, unsigned int x, unsigned int y, uint32_t color) {
-//   image->pixels[(y * image->w) + x] = color;
 // }
 
 // void scale(image_t* src, image_t* dst, float scalex, float scaley) {
@@ -72,29 +72,15 @@ static uint32_t RGB2Gray(uint32_t pixel) {
 }
 
 void BMP_gray(BMP_Image* img) {
-  int pxl;
-  uint8_t* d = img->data;
-  for (pxl = 0; pxl < (img->data_size); pxl += 3) {
-    uint32_t pixel = d[pxl] << 24 | d[pxl + 1] << 16 | d[pxl + 2] << 8 | 0;
+  int x, y;
+  for (x = 0, y = 0; y < img->height; x++) {
+    if (x > img->width) {
+      x = 0;
+      y++;
+    }
+    uint32_t pixel = getpixel(img, x, y);
     uint32_t gray = RGB2Gray(pixel);
-
-    // printf("3: before: %x vs after: %x\n", d[pxl], getByte(gray, 3));
-    // printf("2: before: %x vs after: %x\n", d[pxl + 1], getByte(gray, 2));
-    // printf("1: before: %x vs after: %x\n", d[pxl + 2], getByte(gray, 1));
-
-    // if (getByte(gray, 3) != getByte(pixel, 3)) {
-    //   printf("3: before: %x != after: %x\n", getByte(pixel, 3), getByte(gray, 3));
-    // }
-    // if (getByte(gray, 2) != getByte(pixel, 2)) {
-    //   printf("2: before: %x != after: %x\n", getByte(pixel, 2), getByte(gray, 2));
-    // }
-    // if (getByte(gray, 1) != getByte(pixel, 1)) {
-    //   printf("1: before: %x != after: %x\n", getByte(pixel, 1), getByte(gray, 1));
-    // }
-
-    d[pxl] = getByte(gray, 3);
-    d[pxl + 1] = getByte(gray, 2);
-    d[pxl + 2] = getByte(gray, 1);
+    putpixel(img, x, y, gray);
   }
 }
 
