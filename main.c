@@ -84,8 +84,8 @@ void BMP_gray(BMP_Image* img) {
 
 int main(int argc, char** argv) {
   // Check arguments
-  if (argc < 3) {
-    printf("Usage: bmp.o <input> <output>\n");
+  if (argc < 4) {
+    printf("Usage: bmp.o <input> <output> <scale_factor>\n");
     return EXIT_FAILURE;
   }
 
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
   // We'll change this out for our interpolation method later
   // BMP_gray(img);
 
-  float scale_factor = 0.3333;
+  float scale_factor = atof(argv[3]);
   BMP_Image* dst = NULL;
   dst = malloc(sizeof(BMP_Image));
 
