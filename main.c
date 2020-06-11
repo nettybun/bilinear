@@ -10,7 +10,8 @@
 //   unsigned int h;
 // } image_t;
 
-// #define getByte(value, n) (value >> (n * 8) & 0xFF)
+// n as 0 gets the LAST (RIGHTMOST) byte. n as 3 is the FIRST (LEFTMOST) byte.
+#define getByte(value, n) (value >> (n * 8) & 0xFF)
 
 // uint32_t getpixel(image_t* image, unsigned int x, unsigned int y) {
 //   return image->pixels[(y * image->w) + x];
@@ -57,21 +58,43 @@
 //   }
 // }
 
-// Grayscale conversion (Still BRG code format (not a typo of RGB))
+// Grayscale conversion (Still BGR code format (not a typo of RGB))
 
-static int RGB2Gray(char red, char green, char blue) {
+static uint32_t RGB2Gray(uint32_t pixel) {
+  uint8_t blue = getByte(pixel, 3);
+  uint8_t green = getByte(pixel, 2);
+  uint8_t red = getByte(pixel, 1);
   // this is a commonly used formula
   double gray = 0.2989 * red + 0.5870 * green + 0.1140 * blue;
-  return (int)gray;
+  // uint32_t gray_pixel = blue << 24 | green << 16 | red << 8 | 0;
+  uint32_t gray_pixel = (int)gray << 24 | (int)gray << 16 | (int)gray << 8 | 0;
+  return gray_pixel;
 }
 
 void BMP_gray(BMP_Image* img) {
   int pxl;
+  uint8_t* d = img->data;
   for (pxl = 0; pxl < (img->data_size); pxl += 3) {
-    unsigned char gray = RGB2Gray(img->data[pxl + 2], img->data[pxl + 1], img->data[pxl]);
-    img->data[pxl + 2] = gray;
-    img->data[pxl + 1] = gray;
-    img->data[pxl] = gray;
+    uint32_t pixel = d[pxl] << 24 | d[pxl + 1] << 16 | d[pxl + 2] << 8 | 0;
+    uint32_t gray = RGB2Gray(pixel);
+
+    // printf("3: before: %x vs after: %x\n", d[pxl], getByte(gray, 3));
+    // printf("2: before: %x vs after: %x\n", d[pxl + 1], getByte(gray, 2));
+    // printf("1: before: %x vs after: %x\n", d[pxl + 2], getByte(gray, 1));
+
+    // if (getByte(gray, 3) != getByte(pixel, 3)) {
+    //   printf("3: before: %x != after: %x\n", getByte(pixel, 3), getByte(gray, 3));
+    // }
+    // if (getByte(gray, 2) != getByte(pixel, 2)) {
+    //   printf("2: before: %x != after: %x\n", getByte(pixel, 2), getByte(gray, 2));
+    // }
+    // if (getByte(gray, 1) != getByte(pixel, 1)) {
+    //   printf("1: before: %x != after: %x\n", getByte(pixel, 1), getByte(gray, 1));
+    // }
+
+    d[pxl] = getByte(gray, 3);
+    d[pxl + 1] = getByte(gray, 2);
+    d[pxl + 2] = getByte(gray, 1);
   }
 }
 
