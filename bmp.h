@@ -5,14 +5,18 @@
 // tell compiler not to add space between the attributes
 #pragma pack(1)
 
-// a BMP file has a header (54 bytes) and data
+// BMP file has two headers; normal header (14 bytes) and DIB header (40 bytes)
+// BMP_Header is both headers (54 bytes) and then data is after
 typedef struct {
-  uint16_t type;              // Magic identifier
-  uint32_t size;              // File size in bytes
-  uint16_t reserved1;         // Not used
-  uint16_t reserved2;         // Not used
-  uint32_t offset;            //
-  uint32_t header_size;       // Header size in bytes
+  // Header
+  uint16_t type;       // Magic identifier
+  uint32_t size;       // File size in bytes
+  uint16_t reserved1;  // Not used
+  uint16_t reserved2;  // Not used
+  uint32_t offset;     // Offset to image data in bytes from beginning of file (54 bytes)
+
+  // DIB header
+  uint32_t dib_header_size;   // DIB header size in bytes (40 bytes)
   uint32_t width;             // Width of the image
   uint32_t height;            // Height of image
   uint16_t planes;            // Number of color planes
@@ -26,25 +30,19 @@ typedef struct {
 } BMP_Header;
 
 typedef struct {
-  BMP_Header header;
+  BMP_Header header;  // 54 bytes
   unsigned int data_size;
   unsigned int width;
   unsigned int height;
-  unsigned int bytes_per_pixel;
   uint8_t* data;
 } BMP_Image;
 
-// open a BMP image given a filename
-// return a pointer to a BMP image if success
-// returns NULL if failure.
 BMP_Image* BMP_open(const char* filename);
 
-// save a BMP image to the given a filename
-// return 0 if failure
-// return 1 if success
+BMP_Image* BMP_new(unsigned int width, unsigned int height);
+
 int BMP_save(const BMP_Image* image, const char* filename);
 
-// release the memory of a BMP image structure
 void BMP_destroy(BMP_Image* image);
 
 #endif

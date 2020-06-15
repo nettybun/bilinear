@@ -6,6 +6,7 @@
 // correct values for the header
 #define MAGIC_VALUE 0X4D42
 #define BITS_PER_PIXEL 24
+#define BYTES_PER_PIXEL (BITS_PER_PIXEL / 3)
 #define NUM_PLANE 1
 #define COMPRESSION 0
 
@@ -58,7 +59,6 @@ BMP_Image* BMP_open(const char* filename) {
   img->data_size = (img->header).size - sizeof(BMP_Header);
   img->width = (img->header).width;
   img->height = (img->header).height;
-  img->bytes_per_pixel = (img->header).bits / 8;  // Bits per byte
   img->data = malloc(sizeof(unsigned char) * (img->data_size));
   if ((img->data) == NULL) {
     return cleanUp(fptr, img);
@@ -72,6 +72,53 @@ BMP_Image* BMP_open(const char* filename) {
     return cleanUp(fptr, img);
   }
   fclose(fptr);
+
+  BMP_Header* h = &(img->header);
+  printf("BMP header:\n");
+  printf("header->size %d\n", h->size);
+  printf("header->offset %d\n", h->offset);
+  printf("header->dib_header_size %d\n", h->dib_header_size);
+  printf("header->width %d\n", h->width);
+  printf("header->height %d\n", h->height);
+  printf("header->planes %d\n", h->planes);
+  printf("header->bits %d\n", h->bits);
+  printf("header->compression %d\n", h->compression);
+  printf("header->imagesize %d\n", h->imagesize);
+  printf("header->xresolution %d\n", h->xresolution);
+  printf("header->yresolution %d\n", h->yresolution);
+  printf("header->ncolours %d\n", h->ncolours);
+  printf("header->importantcolours %d\n", h->importantcolours);
+
+  return img;
+}
+
+BMP_Image* BMP_new(unsigned int width, unsigned int height) {
+  BMP_Image* img = NULL;
+  img = malloc(sizeof(BMP_Image));
+
+  int data_size = width * height * BYTES_PER_PIXEL;
+  BMP_Header* header = malloc(sizeof(BMP_Header));
+  header->type = MAGIC_VALUE;
+  header->size = sizeof(BMP_Header) + data_size;
+  header->offset = sizeof(BMP_Header);  // 54
+  header->dib_header_size = 40;
+  header->width = width;
+  header->height = height;
+  header->planes = NUM_PLANE;
+  header->bits = BITS_PER_PIXEL;
+  header->compression = COMPRESSION;
+  header->imagesize = 0;
+  header->xresolution = 0;
+  header->yresolution = 0;
+  header->ncolours = 0;
+  header->importantcolours = 0;
+
+  img->header = *header;
+  img->data_size = data_size;
+  img->width = width;
+  img->height = height;
+  img->data = malloc(sizeof(unsigned char) * data_size);
+
   return img;
 }
 
