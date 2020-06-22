@@ -1,0 +1,54 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Build+Debug BMP to Simple",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/bmp_to_simple_convert",
+      "args": [
+        "${workspaceFolder}/images/w3c.bmp"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "C/C++: gcc build active file",
+      "miDebuggerPath": "/usr/bin/gdb"
+    },
+    {
+      "name": "Build+Debug Simple to BMP",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/simple_to_bmp_convert",
+      "args": [
+        "${workspaceFolder}/images/simple/w3c.simple"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "C/C++: gcc build active file",
+      "miDebuggerPath": "/usr/bin/gdb"
+    }
+  ]
+}

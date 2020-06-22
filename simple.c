@@ -25,29 +25,26 @@ SIMPLE_Image* SIMPLE_clean_up(FILE* fptr, SIMPLE_Image* img) {
   if (fptr != NULL) {
     fclose(fptr);
   }
-  free(img->data);
-  free(img);
+  if (img != NULL) {
+    free(img->data);
+    free(img);
+  }
   return NULL;
 }
 
 SIMPLE_Image* SIMPLE_open(const char* filename) {
   FILE* fptr = NULL;
   SIMPLE_Image* img = NULL;
-  SIMPLE_Header* header = NULL;
   fptr = fopen(filename, "r");  // "rb" unnecessary in Linux
   if (fptr == NULL) {
     return SIMPLE_clean_up(fptr, img);
   }
   img = malloc(sizeof(SIMPLE_Image));
-  header = malloc(sizeof(SIMPLE_Header));
-
-  if (fread(&header, sizeof(SIMPLE_Header), 1, fptr) != 1) {
+  if (
+      fread(&(img->width), sizeof(uint32_t), 1, fptr) != 1 ||
+      fread(&(img->height), sizeof(uint32_t), 1, fptr) != 1) {
     return SIMPLE_clean_up(fptr, img);
   }
-  img->width = header->width;
-  img->height = header->height;
-  free(header);
-
   int data_size = img->width * img->height;
   img->data = malloc(sizeof(uint8_t) * data_size);
   if (fread(img->data, sizeof(uint8_t), data_size, fptr) != data_size) {

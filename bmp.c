@@ -42,8 +42,10 @@ BMP_Image* BMP_clean_up(FILE* fptr, BMP_Image* img) {
   if (fptr != NULL) {
     fclose(fptr);
   }
-  free(img->data);
-  free(img);
+  if (img != NULL) {
+    free(img->data);
+    free(img);
+  }
   return NULL;
 }
 
@@ -52,17 +54,21 @@ BMP_Image* BMP_open(const char* filename) {
   BMP_Image* img = NULL;
   fptr = fopen(filename, "r");  // "rb" unnecessary in Linux
   if (fptr == NULL) {
+    printf("ERR: Couldn't open file %s\n", filename);
     return BMP_clean_up(fptr, img);
   }
   img = malloc(sizeof(BMP_Image));
   if (img == NULL) {
+    printf("ERR: Couldn't malloc() BMP_Image\n");
     return BMP_clean_up(fptr, img);
   }
   // read the header
   if (fread(&(img->header), sizeof(BMP_Header), 1, fptr) != 1) {
+    printf("ERR: Couldn't read BMP header from file\n");
     return BMP_clean_up(fptr, img);
   }
-  if (BMP_check_header(&(img->header)) == EXIT_SUCCESS) {
+  if (BMP_check_header(&(img->header)) == EXIT_FAILURE) {
+    printf("ERR: BMP header isn't valid\n");
     return BMP_clean_up(fptr, img);
   }
   img->data_size = (img->header).size - sizeof(BMP_Header);
@@ -71,11 +77,13 @@ BMP_Image* BMP_open(const char* filename) {
   img->data = malloc(sizeof(uint8_t) * img->data_size);
 
   if (fread(img->data, sizeof(uint8_t), img->data_size, fptr) != img->data_size) {
+    printf("ERR: Couldn't read BMP image pixel data\n");
     return BMP_clean_up(fptr, img);
   }
   // Sanity check, if supposedly at EOF but there's still data
   uint8_t onebyte;
   if (fread(&onebyte, sizeof(uint8_t), 1, fptr) != 0) {
+    printf("ERR: BMP still has data after last known pixel\n");
     return BMP_clean_up(fptr, img);
   }
   fclose(fptr);

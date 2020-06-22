@@ -7,11 +7,6 @@
 typedef struct {
   uint32_t width;
   uint32_t height;
-} SIMPLE_Header;
-
-typedef struct {
-  uint32_t width;
-  uint32_t height;
   uint8_t* data;
 } SIMPLE_Image;
 
