@@ -55,11 +55,11 @@ int main(int argc, char** argv) {
   if (src == NULL) {
     return EXIT_FAILURE;
   }
-  SIMPLE_Image* dst = SIMPLE_new(src->width / 2, src->height / 2);
+  SIMPLE_Image* dst = SIMPLE_new(
+      src->width * scale_factor,
+      src->height * scale_factor);
 
-  printf("Scaling\n");
   scale(src, dst, scale_factor, scale_factor);
-  printf("Done\n");
 
   int status = SIMPLE_save(dst, dst_file);
   SIMPLE_destroy(src);
