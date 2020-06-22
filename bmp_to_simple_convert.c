@@ -23,9 +23,10 @@ int main(int argc, char** argv) {
 
   SIMPLE_Image* simple = SIMPLE_new(w, h);
   int pixels = w * h;
+  int pxl;
 
   // Grayscale conversion
-  for (int pxl = 0; pxl < pixels; pxl++) {
+  for (pxl = 0; pxl < pixels; pxl++) {
     uint8_t b = bmp->data[(3 * pxl)];
     uint8_t g = bmp->data[(3 * pxl) + 1];
     uint8_t r = bmp->data[(3 * pxl) + 2];

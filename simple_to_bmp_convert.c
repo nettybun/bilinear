@@ -21,8 +21,9 @@ int main(int argc, char** argv) {
 
   BMP_Image* bmp = BMP_new(simple->width, simple->height);
   int pixels = simple->width * simple->height;
+  int pxl;
 
-  for (int pxl = 0; pxl < pixels; pxl++) {
+  for (pxl = 0; pxl < pixels; pxl++) {
     bmp->data[(3 * pxl)] = simple->data[pxl];
     bmp->data[(3 * pxl) + 1] = simple->data[pxl];
     bmp->data[(3 * pxl) + 2] = simple->data[pxl];
