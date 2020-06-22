@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // correct values for the header
 #define MAGIC_VALUE 0X4D42
@@ -9,27 +10,35 @@
 #define BYTES_PER_PIXEL (BITS_PER_PIXEL / 3)
 #define NUM_PLANE 1
 #define COMPRESSION 0
+#define EXT ".bmp"
 
-// return 0 if the header is invalid
-// return 1 if the header is valid
-static int checkHeader(BMP_Header* hdr) {
-  if ((hdr->type) != MAGIC_VALUE) {
-    return 0;
-  }
-  if ((hdr->bits) != BITS_PER_PIXEL) {
-    return 0;
-  }
-  if ((hdr->planes) != NUM_PLANE) {
-    return 0;
-  }
-  if ((hdr->compression) != COMPRESSION) {
-    return 0;
-  }
-  return 1;
+char* BMP_replace_ext(const char* filename) {
+  char* new_filename = malloc(strlen(filename) + sizeof(EXT));
+  strcpy(new_filename, filename);
+
+  char* ptrFile = strrchr(new_filename, '/');
+  ptrFile = (ptrFile) ? new_filename : ptrFile + 1;
+
+  char* ptrExt = strrchr(ptrFile, '.');
+  if (ptrExt != NULL)
+    strcpy(ptrExt, EXT);
+  else
+    strcat(ptrFile, EXT);
+  return new_filename;
 }
 
-// close opened file and release memory
-BMP_Image* cleanUp(FILE* fptr, BMP_Image* img) {
+static int BMP_check_header(BMP_Header* hdr) {
+  if (
+      (hdr->type) != MAGIC_VALUE ||
+      (hdr->bits) != BITS_PER_PIXEL ||
+      (hdr->planes) != NUM_PLANE ||
+      (hdr->compression) != COMPRESSION) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+BMP_Image* BMP_clean_up(FILE* fptr, BMP_Image* img) {
   if (fptr != NULL) {
     fclose(fptr);
   }
@@ -43,60 +52,41 @@ BMP_Image* BMP_open(const char* filename) {
   BMP_Image* img = NULL;
   fptr = fopen(filename, "r");  // "rb" unnecessary in Linux
   if (fptr == NULL) {
-    return cleanUp(fptr, img);
+    return BMP_clean_up(fptr, img);
   }
   img = malloc(sizeof(BMP_Image));
   if (img == NULL) {
-    return cleanUp(fptr, img);
+    return BMP_clean_up(fptr, img);
   }
   // read the header
   if (fread(&(img->header), sizeof(BMP_Header), 1, fptr) != 1) {
-    return cleanUp(fptr, img);
+    return BMP_clean_up(fptr, img);
   }
-  if (checkHeader(&(img->header)) == 0) {
-    return cleanUp(fptr, img);
+  if (BMP_check_header(&(img->header)) == EXIT_SUCCESS) {
+    return BMP_clean_up(fptr, img);
   }
   img->data_size = (img->header).size - sizeof(BMP_Header);
   img->width = (img->header).width;
   img->height = (img->header).height;
-  img->data = malloc(sizeof(unsigned char) * (img->data_size));
-  if ((img->data) == NULL) {
-    return cleanUp(fptr, img);
+  img->data = malloc(sizeof(uint8_t) * img->data_size);
+
+  if (fread(img->data, sizeof(uint8_t), img->data_size, fptr) != img->data_size) {
+    return BMP_clean_up(fptr, img);
   }
-  if (fread(img->data, sizeof(char), img->data_size, fptr) != (img->data_size)) {
-    return cleanUp(fptr, img);
-  }
-  char onebyte;
-  if (fread(&onebyte, sizeof(char), 1, fptr) != 0) {
-    // not at the of the file but the file still has data
-    return cleanUp(fptr, img);
+  // Sanity check, if supposedly at EOF but there's still data
+  uint8_t onebyte;
+  if (fread(&onebyte, sizeof(uint8_t), 1, fptr) != 0) {
+    return BMP_clean_up(fptr, img);
   }
   fclose(fptr);
-
-  BMP_Header* h = &(img->header);
-  printf("BMP header:\n");
-  printf("header->size %d\n", h->size);
-  printf("header->offset %d\n", h->offset);
-  printf("header->dib_header_size %d\n", h->dib_header_size);
-  printf("header->width %d\n", h->width);
-  printf("header->height %d\n", h->height);
-  printf("header->planes %d\n", h->planes);
-  printf("header->bits %d\n", h->bits);
-  printf("header->compression %d\n", h->compression);
-  printf("header->imagesize %d\n", h->imagesize);
-  printf("header->xresolution %d\n", h->xresolution);
-  printf("header->yresolution %d\n", h->yresolution);
-  printf("header->ncolours %d\n", h->ncolours);
-  printf("header->importantcolours %d\n", h->importantcolours);
-
   return img;
 }
 
 BMP_Image* BMP_new(unsigned int width, unsigned int height) {
+  int data_size = width * height * BYTES_PER_PIXEL;
   BMP_Image* img = NULL;
   img = malloc(sizeof(BMP_Image));
 
-  int data_size = width * height * BYTES_PER_PIXEL;
   BMP_Header* header = malloc(sizeof(BMP_Header));
   header->type = MAGIC_VALUE;
   header->size = sizeof(BMP_Header) + data_size;
@@ -117,28 +107,24 @@ BMP_Image* BMP_new(unsigned int width, unsigned int height) {
   img->data_size = data_size;
   img->width = width;
   img->height = height;
-  img->data = malloc(sizeof(unsigned char) * data_size);
-
+  img->data = malloc(sizeof(uint8_t) * data_size);
   return img;
 }
 
 int BMP_save(const BMP_Image* img, const char* filename) {
-  FILE* fptr = NULL;
-  fptr = fopen(filename, "w");
+  char* new_filename = BMP_replace_ext(filename);
+  FILE* fptr = fopen(new_filename, "w");
   if (fptr == NULL) {
-    return 0;
+    return EXIT_FAILURE;
   }
-  // write the header first
-  if (fwrite(&(img->header), sizeof(BMP_Header), 1, fptr) != 1) {
+  if (
+      fwrite(&(img->header), sizeof(BMP_Header), 1, fptr) != 1 ||
+      fwrite(img->data, sizeof(uint8_t), img->data_size, fptr) != img->data_size) {
     fclose(fptr);
-    return 0;
-  }
-  if (fwrite(img->data, sizeof(char), img->data_size, fptr) != (img->data_size)) {
-    fclose(fptr);
-    return 0;
+    return EXIT_FAILURE;
   }
   fclose(fptr);
-  return 1;
+  return EXIT_SUCCESS;
 }
 
 void BMP_destroy(BMP_Image* img) {
