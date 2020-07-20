@@ -14,6 +14,7 @@
 // etc) but just a large constant like 1000.
 
 #define FPU_FACTOR 2048
+// 2^11 = 2048
 #define SHIFT 11
 
 #define p00 src->data[y0 * src->width + x0]
