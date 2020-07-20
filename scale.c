@@ -4,24 +4,6 @@
 
 #include "simple.h"
 
-uint8_t getpixel(SIMPLE_Image* img, unsigned int x, unsigned int y) {
-  int pxl = ((y * img->width) + x);
-  return img->data[pxl];
-}
-
-void putpixel(SIMPLE_Image* img, unsigned int x, unsigned int y, uint8_t color) {
-  int pxl = ((y * img->width) + x);
-  img->data[pxl] = color;
-}
-
-int lerp(int s, int e, int t) {
-  return s + (e - s) * t;
-}
-
-int blerp(uint8_t c00, uint8_t c10, uint8_t c01, uint8_t c11, int tx, int ty) {
-  return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
-}
-
 // Alright so lets avoid FPU
 // If the src > dst like 400 -> 200 then pixel x must be mapped _down_ by the
 // scale factor like 0.5. To avoid FPU we can multiply both src and dst such
@@ -33,6 +15,11 @@ int blerp(uint8_t c00, uint8_t c10, uint8_t c01, uint8_t c11, int tx, int ty) {
 
 #define FPU_FACTOR 2048
 #define SHIFT 11
+
+#define p00 src->data[y0 * src->width + x0]
+#define p10 src->data[y0 * src->width + (x0 + 1)]
+#define p01 src->data[(y0 + 1) * src->width + x0]
+#define p11 src->data[(y0 + 1) * src->width + (x0 + 1)]
 
 void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor) {
   const int dst_width_scaled = src->width * scale_factor;
@@ -51,39 +38,45 @@ void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor) {
       int x0 = sx >> SHIFT;
       int fracx = sx - (x0 << SHIFT);
 
-      uint8_t c00 = getpixel(src, x0, y0);
-      uint8_t c10 = getpixel(src, x0 + 1, y0);
-      uint8_t c01 = getpixel(src, x0, y0 + 1);
-      uint8_t c11 = getpixel(src, x0 + 1, y0 + 1);
-      // uint8_t result = (uint8_t)blerp(c00, c10, c01, c11, fracx, fracy);
-
-      // Not convinced this will make any sense...
-      uint8_t result = (
-        (
-          c00 * (FPU_FACTOR - fracx) * (FPU_FACTOR - fracy) +
-          c10 * fracx * (FPU_FACTOR - fracy) +
-          c01 * (FPU_FACTOR - fracx) * fracy +
-          c11 * fracx * fracy +
-          (FPU_FACTOR * FPU_FACTOR / 2)
-        ) >> (2 * SHIFT)
-      );
-      putpixel(dst, x, y, result);
+      dst->data[(y * dst->width) + x] =
+          ((
+               p00 * (FPU_FACTOR - fracx) * (FPU_FACTOR - fracy) +
+               p10 * fracx * (FPU_FACTOR - fracy) +
+               p01 * (FPU_FACTOR - fracx) * fracy +
+               p11 * fracx * fracy +
+               (FPU_FACTOR * FPU_FACTOR / 2)) >>
+           (2 * SHIFT));
     }
   }
 }
 
-// int a = (
-//     (
-//         c1a * (FACTOR - fracx) * (FACTOR - fracy)
-//       + c2a * fracx * (FACTOR - fracy)
-//       + c3a * (FACTOR - fracx) * fracy
-//       + c4a * fracx * fracy
-//       + (FACTOR * FACTOR / 2)
-//     ) >> (2 * SHIFT)
-// );
+// s + (e - s) * t
 
-// s + (e - s) * t => c00 + (c10 - c00) * fracx
-// s + (e - s) * t => c01 + (c11 - c01) * fracy
+// A: p00 + (p10 - p00) * fracx
+// B: p01 + (p11 - p01) * fracx
+// C: A + (B - A) * fracy
+
+// p00 + p10X - p00X + p01Y + p11XY - p01XY - p00Y + p10XY - p00XY
+
+// p00   - p00X   - p00Y - p00XY +
+// p10X  + p10XY  +
+// p01Y  - p01XY  +
+// p11XY
+
+// p00 * (1 - X - Y - XY) +
+// p10 * (X + XY) +
+// p01 * (Y - XY) +
+// p11 * (XY)
+
+// p00 * (FPU_FACTOR - fracx) * (FPU_FACTOR - fracy) +
+// p10 * fracx * (FPU_FACTOR - fracy) +
+// p01 * (FPU_FACTOR - fracx) * fracy +
+// p11 * fracx * fracy +
+
+// p00 * (FAC^2 - FAC(X - Y) + XY) +
+// p10 * (fracx*FAC - XY) +
+// p01 * (fracy*FAC - XY) +
+// p11 * (XY) +
 
 int main(int argc, char** argv) {
   if (argc != 4) {
