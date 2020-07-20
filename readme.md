@@ -28,6 +28,8 @@ https://github.com/yunghsianglu/IntermediateCProgramming/tree/master/Ch23
 The initial bilinear interpolation code is from Rosetta Code:
 https://rosettacode.org/wiki/Bilinear_interpolation#C
 
+http://www.tech-algorithm.com/articles/bilinear-image-scaling/
+
 ## `./run.sh`
 
 ```
