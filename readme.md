@@ -32,6 +32,12 @@ http://www.tech-algorithm.com/articles/bilinear-image-scaling/
 
 ## `./run.sh`
 
+Note that if you're cross compiling do
+
+```
+arm-linux-gnueabi-gcc -march=armv7-a -mfloat-abi=softfp -mfpu=neon -S scale.c
+```
+
 ```
 + mkdir -p bin
 + gcc -g bmp_to_simple_convert.c bmp.c simple.c -o bin/bmp_to_simple_convert
