@@ -1,147 +1,249 @@
-#ifndef __ARM_FP
-// VSCode doesn't autocomplete because my system is x86 and the .h is disabled
-#define __ARM_FP 1
-#endif
-#include <arm_neon.h>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "simple.h"
 
-// Alright so lets avoid FPU
-// If the src > dst like 400 -> 200 then pixel x must be mapped _down_ by the
-// scale factor like 0.5. To avoid FPU we can multiply both src and dst such
-// that the pixel is never a floating point.
-// If the dst > src like 200 -> 400 then pixel x is never a floating point
-// because the scale is >1
-// To generally though, we can not just multiply by the scale factor (10, 100,
-// etc) but just a large constant like 1000.
+/*
+Since S3C440A CPU does not have any SIMD extension, we cannot perform any vectorized implementaion
+using NEON. We can only perform such optimization which will reduce numbers of instruction exectured,
+replace inefficient instruction with their efficient version or reduce memory usage to decrease cache miss rate.
+*/
 
-#define FPU_FACTOR 2048
-// 2^11 = 2048
-#define SHIFT 11
+// #define NAIVE /* simple, easy to understand floatin point implementation from http://www.tech-algorithm.com/articles/bilinear-image-scaling/ */
+// #define OPTIMIZED_SCALAR_FLOATING_POINT /* Optimized floating point implementation */
+// #define SCALAR_FIXED_POINT /* Implementation with introduced operators that to calculation in fixed point domain. */
+#define OPTIMIZED_SCALAR_FIXED_POINT /* Optimized implementation using fixed point calculations */
 
-#define p00 src->data[y0 * src->width + x0]
-#define p01 src->data[(y0 + 1) * src->width + x0]
-#define p10 src->data[y0 * src->width + (x0 + 1)]
-#define p11 src->data[(y0 + 1) * src->width + (x0 + 1)]
+#ifdef NAIVE
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  uint32_t i, j;
+  uint32_t k = 0;
+  double scale = 1.0f / scale_factor;
 
-void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor) {
-  const int dst_width_scaled = src->width * scale_factor;
-  const int dst_height_scaled = src->height * scale_factor;
-  const int x_ratio_scaled = (int)((double)FPU_FACTOR * src->width / dst_width_scaled + 0.5);    // FPU_FACTOR * src->width / dst_width_scaled;
-  const int y_ratio_scaled = (int)((double)FPU_FACTOR * src->height / dst_height_scaled + 0.5);  // FPU_FACTOR * src->height / dst_height_scaled;
+  for(i = 0; i < dst->height; i++)
+  {
+    for(j = 0; j < dst->width; j++)
+    {
+      uint32_t x = (uint32_t)(scale * j);
+      uint32_t y = (uint32_t)(scale * i);
 
-  int x, y;
-  for (y = 0; y < dst->height; y++) {
-    int sy = y * y_ratio_scaled;
-    int y0 = sy >> SHIFT;
-    int fracy = sy - (y0 << SHIFT);
+      float xfrac = ((double)scale * j) - x;
+      float yfrac = ((double)scale * i) - y;
 
-    for (x = 0; x < dst->width; x++) {
-      int sx = x * x_ratio_scaled;
-      int x0 = sx >> SHIFT;
-      int fracx = sx - (x0 << SHIFT);
+      uint32_t index = x + y * src->width;
 
-      dst->data[(y * dst->width) + x] =
-          ((
-               p00 * (FPU_FACTOR - fracx) * (FPU_FACTOR - fracy) +
-               p01 * (FPU_FACTOR - fracx) * fracy +
-               p10 * fracx * (FPU_FACTOR - fracy) +
-               p11 * fracx * fracy +
-               (FPU_FACTOR * FPU_FACTOR / 2)) >>
-           (2 * SHIFT));
+      uint8_t A = src->data[index];
+      uint8_t B = src->data[index + 1];
+      uint8_t C = src->data[index + src->width];
+      uint8_t D = src->data[index + src->width + 1];
+
+      uint8_t gray = (uint8_t)(A * (1.0f-xfrac) * (1.0f-yfrac) +
+                    + B * xfrac * (1.0f-yfrac) +
+                    + C * yfrac * (1.0f-xfrac) +
+                    + D * xfrac * yfrac);
+      dst->data[k++] = gray;
     }
   }
 }
+#endif
+#ifdef OPTIMIZED_SCALAR_FLOATING_POINT
+/*
+In this implementation few optimizations happened:
+- moved y and yfrac calculation to outer loop since it isn't correlated with variable i
+- removed double because this CPU has only 32-bit register and to make algorithm faster,
+  we must use only native types (such types that fit into CPU registers without any transform)
+  because otherwise compiler will add many instruction that must handle 64-bit wide calculations.
+- uint8_t type has been also removed from calculations as it also isn't native type for 32-bit architecture.
+- for loops replaced by while(). Usually while loops are the fastests especially when condition inside
+  them is as simple as possible. That's why I switch to iterating from the end of image.
+*/
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  uint32_t i = dst->height, k = dst->height*dst->width-1;
+  uint32_t j;
+  float scale = 1.0f / scale_factor;
 
-// s + (e - s) * t
+  while(i--)
+  {
+    uint32_t y = (uint32_t)(scale * i);
+    float yfrac = scale * i - y;
+    j = dst->width;
 
-// A: p00 + (p10 - p00) * fracx
-// B: p01 + (p11 - p01) * fracx
-// C: A + (B - A) * fracy
+    while(j--)
+    {
+      uint32_t x = (uint32_t)(scale * j);
+      float xfrac = scale * j - x;
+      float i_xfrac = 1.0f - xfrac;
+      float i_yfrac = 1.0f - yfrac;
+      uint32_t index = x + y * src->width;
 
-// p00 + p10X - p00X + p01Y + p11XY - p01XY - p00Y + p10XY - p00XY
+      uint32_t A = src->data[index];
+      uint32_t B = src->data[index + 1];
+      uint32_t C = src->data[index + src->width];
+      uint32_t D = src->data[index + src->width + 1];
 
-// p00   - p00X   - p00Y - p00XY +
-// p01Y  - p01XY  +
-// p10X  + p10XY  +
-// p11XY
-
-// p00 * (1 - X - Y - XY) +
-// p01 * (Y - XY) +
-// p10 * (X + XY) +
-// p11 * (XY)
-
-// p00 * (FPU_FACTOR - fracx) * (FPU_FACTOR - fracy) +
-// p01 * (FPU_FACTOR - fracx) * fracy +
-// p10 * fracx * (FPU_FACTOR - fracy) +
-// p11 * fracx * fracy +
-
-// p00 * (FAC^2 - FAC(X - Y) + XY) +
-// p01 * (fracy*FAC - XY) +
-// p10 * (fracx*FAC - XY) +
-// p11 * (XY) +
-// XXX: No. It's not equivalent algebra but it's the original mathematical
-// equation for linear interpolation
-
-// These #define statements are to have less typing later on
-
-#define v_p00 v_neighbours.val[0]
-#define v_p01 v_neighbours.val[1]
-#define v_p10 v_neighbours.val[2]
-#define v_p11 v_neighbours.val[3]
-
-#define v_ifx v_fracs_inverse.val[0]
-#define v_fx v_fracs.val[0]
-#define v_ify v_fracs_inverse.val[1]
-#define v_fy v_fracs.val[1]
-
-void scale_neon(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor) {
-  const int dst_width_scaled = src->width * scale_factor;
-  const int dst_height_scaled = src->height * scale_factor;
-  const int x_ratio_scaled = (int)((double)FPU_FACTOR * src->width / dst_width_scaled + 0.5);    // FPU_FACTOR * src->width / dst_width_scaled;
-  const int y_ratio_scaled = (int)((double)FPU_FACTOR * src->height / dst_height_scaled + 0.5);  // FPU_FACTOR * src->height / dst_height_scaled;
-
-  uint32x4_t acc;
-  uint32x4x2_t v_fracs_inverse;
-  const uint32_t FPU_FACTOR_QUAD[4] = {FPU_FACTOR, FPU_FACTOR, FPU_FACTOR, FPU_FACTOR};
-  uint32x4_t V_FPU_FACTOR = vld1q_u32(FPU_FACTOR_QUAD);
-
-  int x, y, n = 0;
-  for (y = 0; y < dst->height; y++) {
-    int sy = y * y_ratio_scaled;
-    int y0 = sy >> SHIFT;
-    uint32_t fracy = sy - (y0 << SHIFT);
-
-    for (x = 0; x < dst->width; x++) {
-      int sx = x * x_ratio_scaled;
-      int x0 = sx >> SHIFT;
-      uint32_t fracx = sx - (x0 << SHIFT);
-
-      uint32_t neighbours[4] = {p00, p01, p10, p11};
-      uint32_t fracs[2] = {fracx, fracy};
-      uint32x4x4_t v_neighbours = vld4q_u32(&neighbours);
-      uint32x4x2_t v_fracs = vld2q_u32(&fracs);
-
-      v_ifx = vmlsq_u32(V_FPU_FACTOR, v_fx, V_FPU_FACTOR);
-      v_ify = vmlsq_u32(V_FPU_FACTOR, v_fy, V_FPU_FACTOR);
-
-      // y0,x0 * ifx * ify
-      acc = vmulq_u32(v_p00, vmulq_u32(v_ifx, v_ify));
-      // y0,x0+1 * ifx * fy
-      acc = vmlaq_u32(acc, v_p01, vmulq_u32(v_ifx, v_fy));
-      // y0+1,x0 * fx * ify
-      acc = vmlaq_u32(acc, v_p10, vmulq_u32(v_fx, v_ify));
-      // y0+1,x0+1 * fx * fy
-      acc = vmlaq_u32(acc, v_p11, vmulq_u32(v_fx, v_fy));
-
-      // XXX: Might safe one multiplication if it was an incrementing pixel `n`
-      vst1q_u32(dst->data[(y * dst->width) + x], acc);
+      uint32_t gray = (uint32_t)(A * i_xfrac * i_yfrac +
+                    + B * xfrac * i_yfrac +
+                    + C * yfrac * i_xfrac +
+                    + D * xfrac * yfrac);
+      dst->data[k--] = (uint8_t)gray;
     }
   }
 }
+#endif
+#ifdef SCALAR_FIXED_POINT
+
+/*
+Since S3C440A does not have a floating-point unit, we should avoid any
+floating point calculation since they won't have any hardware acceleration.
+Therefore we need to make all calculation on integer values.
+In order to perform correctly fractional calculations on integer values,
+we implement them using fixed-point calculation. Good and simple explanation
+is here:
+https://spin.atomicobject.com/2012/03/15/simple-fixed-point-math/
+
+I have introduced new type called tQfract which will hold fractional
+value represented by integer value. I also added basic operations on this type.
+In order to mix fractional values and non-fractional values, I added conversions
+between plain integer and fractional (represented by integer).
+
+Value of Q_BITS must be high enough to maintain proper accuracy during calculation
+but low enough to prevent from any overflow during multiplication.
+*/
+
+typedef uint32_t tQfract;
+#define Q_BITS (16u)
+#define Q_MAX ((tQfract)(1<<Q_BITS))
+#define Q_FLOAT_TO_FIXED(a) ((tQfract)((float)a*Q_MAX))
+#define Q_INT_TO_FRACT(a) ((tQfract)((a)<<Q_BITS))
+#define Q_FRACT_TO_INT(a) ((uint32_t)((a)>>Q_BITS))
+#define Q_ADD(a,b) ((tQfract)(a)+(b))
+#define Q_SUB(a,b) ((tQfract)(a)-(b))
+#define Q_MUL(a,b) ((tQfract)(((uint64_t)a)*(b) >> Q_BITS))
+#define Q_DOT4(a,b,c,d) ((tQfract)(a)+(b)+(c)+(d))
+#define Q_10 Q_MAX
+
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  uint32_t i = dst->height, k = dst->height*dst->width-1;
+  uint32_t j;
+  // float scale = 1.0f / scale_factor;
+  uint32_t scale = Q_FLOAT_TO_FIXED(1.0f / scale_factor);
+
+  while(i--)
+  {
+    // uint32_t y = (uint32_t)(scale * i);
+    uint32_t y = Q_FRACT_TO_INT(Q_MUL(scale, Q_INT_TO_FRACT(i)));
+    // float yfrac = scale * i - y;
+    tQfract yfrac = Q_SUB(Q_MUL(scale, Q_INT_TO_FRACT(i)), Q_INT_TO_FRACT(y));
+    j = dst->width;
+
+    while(j--)
+    {
+      // uint32_t x = (uint32_t)(scale * j);
+      uint32_t x = Q_FRACT_TO_INT(Q_MUL(scale, Q_INT_TO_FRACT(j)));
+      // float xfrac = scale * j - x;
+      tQfract xfrac = Q_SUB(Q_MUL(scale, Q_INT_TO_FRACT(j)), Q_INT_TO_FRACT(x));
+
+      // float i_xfrac = 1.0f - xfrac;
+      tQfract i_xfrac = Q_SUB(Q_10, xfrac);
+      // float i_yfrac = 1.0f - yfrac;
+      tQfract i_yfrac = Q_SUB(Q_10, yfrac);
+      uint32_t index = x + y * src->width;
+
+      uint32_t A = src->data[index];
+      uint32_t B = src->data[index + 1];
+      uint32_t C = src->data[index + src->width];
+      uint32_t D = src->data[index + src->width + 1];
+
+      // uint32_t gray = (uint32_t)(A * i_xfrac * i_yfrac +
+      //               + B * xfrac * i_yfrac +
+      //               + C * yfrac * i_xfrac +
+      //               + D * xfrac * yfrac);
+      uint32_t gray =  Q_FRACT_TO_INT(
+                         Q_DOT4(
+                           Q_MUL(Q_INT_TO_FRACT(A), Q_MUL(i_xfrac, i_yfrac))
+                         , Q_MUL(Q_INT_TO_FRACT(B), Q_MUL(xfrac, i_yfrac))
+                         , Q_MUL(Q_INT_TO_FRACT(C), Q_MUL(yfrac, i_xfrac)) 
+                         , Q_MUL(Q_INT_TO_FRACT(D), Q_MUL(xfrac, yfrac))
+                         )
+                       );
+      dst->data[k--] = (uint8_t)gray;
+    }
+  }
+}
+#endif
+#ifdef OPTIMIZED_SCALAR_FIXED_POINT
+
+/*
+This implemation behaves exactly like previous one BUT the main
+optimizaton here was to remove unnecessarry shifting by Q_BITS.
+One good optimization here was to tune Q_BITS in order to allow
+chained multiplication without additional shifting. 
+In this algorithm follwing multiplication chain is the longest:
+A * i_xfrac * i_yfrac
+It is dictating maximum Q_BITS value to allow 3 multiplication in a row without shifting back and forth. 
+There are 3 multiplication and the result cannot exceed 32 bits. We know that A,B,C,D will not be higher than 255.
+So the biggest number X that will satisfy equation (255 * X * X < 2^32) is 2048.
+Therefore 2048 will be our fractional scale. Higher number might produce overflow,
+lower number will decreace accuracy.
+*/
+
+#define Q_BITS (11u)
+#define Q_MAX ((uint32_t)(1<<Q_BITS))
+#define Q_FLOAT_TO_FIXED(a) ((uint32_t)((float)a*Q_MAX))
+#define Q_10 Q_MAX
+
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  uint32_t i = dst->height, k = dst->height*dst->width-1;
+  uint32_t j;
+  // float scale = 1.0f / scale_factor;
+  uint32_t scale = Q_FLOAT_TO_FIXED(1.0f / scale_factor);
+
+  while(i--)
+  {
+    // uint32_t y = (uint32_t)(scale * i);
+    uint32_t y = (scale * i) >> Q_BITS;
+    // float yfrac = scale * i - y;
+    uint32_t yfrac = (scale * i) - (y << Q_BITS);
+    j = dst->width;
+
+    while(j--)
+    {
+      // uint32_t x = (uint32_t)(scale * j);
+      uint32_t x = (scale * j) >> Q_BITS;
+      // float xfrac = scale * j - x;
+      uint32_t xfrac = (scale * j) - (x << Q_BITS);
+
+      // float i_xfrac = 1.0f - xfrac;
+      uint32_t i_xfrac = Q_10 - xfrac;
+      // float i_yfrac = 1.0f - yfrac;
+      uint32_t i_yfrac = Q_10 - yfrac;
+      uint32_t index = x + y * src->width;
+
+      uint32_t A = src->data[index];
+      uint32_t B = src->data[index + 1];
+      uint32_t C = src->data[index + src->width];
+      uint32_t D = src->data[index + src->width + 1];
+
+      // uint32_t gray = (uint32_t)(A * i_xfrac * i_yfrac +
+      //               + B * xfrac * i_yfrac +
+      //               + C * yfrac * i_xfrac +
+      //               + D * xfrac * yfrac);
+      uint32_t gray = (uint32_t)(A * i_xfrac * i_yfrac +
+                    + B * xfrac * i_yfrac +
+                    + C * yfrac * i_xfrac +
+                    + D * xfrac * yfrac) >> (Q_BITS+Q_BITS);
+      dst->data[k--] = (uint8_t)gray;
+    }
+  }
+}
+#endif
+
 
 int main(int argc, char** argv) {
   if (argc != 4) {
