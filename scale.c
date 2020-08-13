@@ -14,7 +14,10 @@ replace inefficient instruction with their efficient version or reduce memory us
 // #define NAIVE /* simple, easy to understand floatin point implementation from http://www.tech-algorithm.com/articles/bilinear-image-scaling/ */
 // #define OPTIMIZED_SCALAR_FLOATING_POINT /* Optimized floating point implementation */
 // #define SCALAR_FIXED_POINT /* Implementation with introduced operators that to calculation in fixed point domain. */
-#define OPTIMIZED_SCALAR_FIXED_POINT /* Optimized implementation using fixed point calculations */
+// #define OPTIMIZED_SCALAR_FIXED_POINT /* Optimized implementation using fixed point calculations */
+// #define VECTOR_EMU_FLOATING_POINT /* Floating point version showing how vectorized code looks like */
+// #define VECTOR_EMU_FIXED_POINT /* Fixed point version showing how vectorized code looks like */
+#define VECTOR_NEON_FIXED_POINT /* Fixed point version with added NEON intrinsics */
 
 #ifdef NAIVE
 void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
@@ -210,6 +213,8 @@ void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
     uint32_t y = (scale * i) >> Q_BITS;
     // float yfrac = scale * i - y;
     uint32_t yfrac = (scale * i) - (y << Q_BITS);
+    // float i_yfrac = 1.0f - yfrac;
+    uint32_t i_yfrac = Q_10 - yfrac;
     j = dst->width;
 
     while(j--)
@@ -221,8 +226,7 @@ void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
 
       // float i_xfrac = 1.0f - xfrac;
       uint32_t i_xfrac = Q_10 - xfrac;
-      // float i_yfrac = 1.0f - yfrac;
-      uint32_t i_yfrac = Q_10 - yfrac;
+
       uint32_t index = x + y * src->width;
 
       uint32_t A = src->data[index];
@@ -239,6 +243,288 @@ void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
                     + C * yfrac * i_xfrac +
                     + D * xfrac * yfrac) >> (Q_BITS+Q_BITS);
       dst->data[k--] = (uint8_t)gray;
+    }
+  }
+}
+#endif
+#ifdef VECTOR_EMU_FLOATING_POINT
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  uint32_t i, j;
+  uint32_t k = 0;
+  const float scale = 1.0f / scale_factor;
+  const float v_const0[2] = {1.0f, -1.0f};
+  const float v_const1[2] = {1.0f,  0.0f};
+
+  for(i = 0; i < dst->height; i++)
+  {
+    uint32_t y = (uint32_t)(scale * i);
+    float yfrac = scale * i - y;
+    float i_yfrac = 1.0f - yfrac;
+    uint32_t y_offset = y * src->width;
+
+    for(j = 0; j < dst->width; j++)
+    {
+      uint32_t x = (uint32_t)(scale * j);
+      float xfrac = scale * j - x;
+      uint32_t index = x + y_offset;
+
+      uint32_t v_src0[2], v_src1[2];
+      float v_weight0[2], v_weight1[2];
+      uint32_t gray;
+
+      v_src0[0] = src->data[index    ];
+      v_src0[1] = src->data[index + 1];
+      v_src1[0] = src->data[index + src->width    ];
+      v_src1[1] = src->data[index + src->width + 1];
+
+      v_weight0[0] = xfrac;
+      v_weight0[1] = xfrac;
+      v_weight1[0] = xfrac;
+      v_weight1[1] = xfrac;
+
+      v_weight0[0] = v_weight0[0] * v_const0[0];
+      v_weight0[1] = v_weight0[1] * v_const0[1];
+      v_weight1[0] = v_weight1[0] * v_const0[0];
+      v_weight1[1] = v_weight1[1] * v_const0[1];
+
+      v_weight0[0] = v_const1[0] - v_weight0[0];
+      v_weight0[1] = v_const1[1] - v_weight0[1];
+      v_weight1[0] = v_const1[0] - v_weight1[0];
+      v_weight1[1] = v_const1[1] - v_weight1[1];
+
+      v_weight0[0] = v_weight0[0] * i_yfrac;
+      v_weight0[1] = v_weight0[1] * i_yfrac;
+      v_weight1[0] = v_weight1[0] * yfrac;
+      v_weight1[1] = v_weight1[1] * yfrac;
+
+      v_src0[0] = v_src0[0] * v_weight0[0];
+      v_src0[1] = v_src0[1] * v_weight0[1];
+      v_src1[0] = v_src1[0] * v_weight1[0];
+      v_src1[1] = v_src1[1] * v_weight1[1];
+
+      gray = v_src0[0] + v_src1[0] + 
+           + v_src0[1] + v_src1[1];
+
+      dst->data[k++] = (uint8_t)gray;
+    }
+  }
+}
+#endif
+#ifdef VECTOR_EMU_FIXED_POINT
+
+#define Q_BITS (11u)
+#define Q_MAX ((uint32_t)(1<<Q_BITS))
+#define Q_FLOAT_TO_FIXED(a) ((uint32_t)((float)a*Q_MAX))
+#define Q_10 Q_MAX
+
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  int32_t i, j, k=0;
+  int32_t scale = Q_FLOAT_TO_FIXED(1.0f / scale_factor);
+  const int32_t v_const0[2] = {1, -1};
+  const int32_t v_const1[2] = {Q_10, 0};
+
+  for(i = 0; i < dst->height; i++)
+  {
+    int32_t y = (scale * i) >> Q_BITS;
+    int32_t yfrac = (scale * i) - (y << Q_BITS);
+    int32_t i_yfrac = Q_10 - yfrac;
+
+    for(j = 0; j < dst->width; j++)
+    {
+      int32_t x = (scale * j) >> Q_BITS;
+      int32_t xfrac = (scale * j) - (x << Q_BITS);
+      int32_t index = x + y * src->width;
+
+      int32_t v_src0[2], v_src1[2];
+      int32_t v_weight0[2], v_weight1[2];
+      int32_t gray;
+
+      // Vector load from memory
+      v_src0[0] = src->data[index    ];
+      v_src0[1] = src->data[index + 1];
+      v_src1[0] = src->data[index + src->width    ];
+      v_src1[1] = src->data[index + src->width + 1];
+
+      // Vector load with constant
+      v_weight0[0] = xfrac;
+      v_weight0[1] = xfrac;
+      v_weight1[0] = xfrac;
+      v_weight1[1] = xfrac;
+
+      // Vector multiply
+      v_weight0[0] = v_weight0[0] * v_const0[0];
+      v_weight0[1] = v_weight0[1] * v_const0[1];
+      v_weight1[0] = v_weight1[0] * v_const0[0];
+      v_weight1[1] = v_weight1[1] * v_const0[1];
+
+      // Vector substract
+      v_weight0[0] = v_const1[0] - v_weight0[0];
+      v_weight0[1] = v_const1[1] - v_weight0[1];
+      v_weight1[0] = v_const1[0] - v_weight1[0];
+      v_weight1[1] = v_const1[1] - v_weight1[1];
+
+      // Vector multiply
+      v_weight0[0] = v_weight0[0] * i_yfrac;
+      v_weight0[1] = v_weight0[1] * i_yfrac;
+      v_weight1[0] = v_weight1[0] * yfrac;
+      v_weight1[1] = v_weight1[1] * yfrac;
+
+      // Vector multiply
+      v_src0[0] = v_src0[0] * v_weight0[0];
+      v_src0[1] = v_src0[1] * v_weight0[1];
+      v_src1[0] = v_src1[0] * v_weight1[0];
+      v_src1[1] = v_src1[1] * v_weight1[1];
+
+      // Vector accross vector
+      gray = v_src0[0] + v_src1[0] + 
+           + v_src0[1] + v_src1[1];
+      
+      gray >>= (Q_BITS+Q_BITS);
+
+      dst->data[k++] = (uint8_t)gray;
+    }
+  }
+}
+#endif
+#include <arm_neon.h>
+#ifdef VECTOR_NEON_FIXED_POINT
+
+/* NEON (or should I use general term as SIMD) instructions 
+   should be used for speeding up the code:
+   - to process bigger chunks of continuous (!!) memory (up to 32 byte vectors) 
+     using single instructions
+   - to merge couple of instructions to one single. Operands should be independent
+     for particular merging.
+   My NEON-optimized version works by merging couple instruction in one.
+
+   Modern compilers like GCC or Clang are very good at auto-vectorizing code
+   which means that sometimes there's no real point of doing manual implementation. 
+   In order to make the code "ready" for auto vectorize we must ensure that:
+   - we process continuous memory space and fixed chunks
+   - our most inner loop has compile-time known number of iterations 
+   - data processed should as independent as possible to prevent wait states.
+   
+   Here we have bilinear interpolation algorithm. It's a simple equation however
+   input memory is not continuous because we fetch two bytes from first row and 
+   another two bytes from next row. Moreover, since we scale x and y, then make
+   a cast to int32_t, when scale is > 1.0, input data are not always updated.
+   In fact, we could read from memory only when pixel index reaches multiple of
+   scale. I didn't use that knowledge in the algorithm because most likely it
+   won't affect performance so much (except situation when we have large scaling
+   factor and loads will come once 5-10 pixel). Third thing which makes such code
+   uneasy to vectorize is the fact that it deals with uint8_t byte data.
+   As I mentioned, best case for CPU is to process data fitting ideally into its
+   registers (which may be 32- or 64-bits long depending on ARM architecture).
+   Pixel weighting is done on 32-bits and input data is 8 bit. In the NEON 
+   reference there isn't any conversion intrinsic that could place each 
+   element from vector int8x8_t to particular lane in vector. That make it hard
+   to even load a int32x2_t vector from (uint8_t *) because there isn't any
+   dedicated hardware instruction to do it within NEON instruction set.
+   Still I managed to implement the thus algorightm using NEON instructions and
+   attached perf reports proving that NEON version is 5x faster than naive implementation.
+   
+   There could be couple of things we could do to make those numbers even better:
+   - we could switch from storing gray pixels as uint8_t to uint32_t. 
+     That would greatly increase size of temporary image but that's how it is done
+     in the industry: input data are converted into some native processing type which
+     for efficient processing.
+   - we could store pixels inside SIMPLE_Image in a interleaved form:
+                  x_pix, x_pix+1, y_pix, y_pix+1 ... 
+     In this way we could load 4 pixels at once in speed up loading time. */
+
+#define Q_BITS (11u)
+#define Q_MAX ((uint32_t)(1<<Q_BITS))
+#define Q_FLOAT_TO_FIXED(a) ((uint32_t)((float)a*Q_MAX))
+#define Q_10 Q_MAX
+
+void scale(SIMPLE_Image* src, SIMPLE_Image* dst, float scale_factor)
+{
+  int32_t i, j, k=0;
+  int32_t scale = Q_FLOAT_TO_FIXED(1.0f / scale_factor);
+  const int32x2_t v_const0 = {1, -1};
+  const int32x2_t v_const1 = {Q_10, 0};
+
+  for(i = 0; i < dst->height; i++)
+  {
+    int32_t y = (scale * i) >> Q_BITS;
+    int32_t yfrac = (scale * i) - (y << Q_BITS);
+    int32_t i_yfrac = Q_10 - yfrac;
+
+    for(j = 0; j < dst->width; j++)
+    {
+      int32_t x = (scale * j) >> Q_BITS;
+      int32_t xfrac = (scale * j) - (x << Q_BITS);
+      int32_t index = x + y * src->width;
+
+      int32x2_t v_src0, v_src1;
+      int32x2_t v_weight0, v_weight1;
+      int32_t gray;
+
+      // Vector load from memory
+      /* We are reading uint8_t data and storing it inside int32x2_t vector.
+         Since there isn't any convenience NEON intrincs, I have used the same
+         code as in above implementation. If Simple_Image would use 32-bit data,
+         I could use of vld1_s32() intrinsics here. */
+      v_src0[0] = src->data[index    ];
+      v_src0[1] = src->data[index + 1];
+      v_src1[0] = src->data[index + src->width    ];
+      v_src1[1] = src->data[index + src->width + 1];
+
+      // Vector load with constant
+      //v_weight0[0] = xfrac;
+      //v_weight0[1] = xfrac;
+      v_weight0 = vld1_dup_s32(&xfrac);
+      //v_weight1[0] = xfrac;
+      //v_weight1[1] = xfrac;
+      v_weight1 = vld1_dup_s32(&xfrac);
+
+      // Vector multiply
+      //v_weight0[0] = v_weight0[0] * v_const0[0];
+      //v_weight0[1] = v_weight0[1] * v_const0[1];
+      v_weight0 = vmul_s32(v_weight0, v_const0);
+      //v_weight1[0] = v_weight1[0] * v_const0[0];
+      //v_weight1[1] = v_weight1[1] * v_const0[1];
+      v_weight1 = vmul_s32(v_weight1, v_const0);
+
+      // Vector substract
+      //v_weight0[0] = v_const1[0] - v_weight0[0];
+      //v_weight0[1] = v_const1[1] - v_weight0[1];
+      v_weight0 = vsub_s32(v_const1, v_weight0);
+      //v_weight1[0] = v_const1[0] - v_weight1[0];
+      //v_weight1[1] = v_const1[1] - v_weight1[1];
+      v_weight1 = vsub_s32(v_const1, v_weight1);
+
+      // Vector multiply
+      //v_weight0[0] = v_weight0[0] * i_yfrac;
+      //v_weight0[1] = v_weight0[1] * i_yfrac;
+      v_weight0 = vmul_n_s32(v_weight0, i_yfrac);
+      //v_weight1[0] = v_weight1[0] * yfrac;
+      //v_weight1[1] = v_weight1[1] * yfrac;
+      v_weight1 = vmul_n_s32(v_weight1, yfrac);
+
+      // Vector multiply
+      //v_src0[0] = v_src0[0] * v_weight0[0];
+      //v_src0[1] = v_src0[1] * v_weight0[1];
+      v_src0 = vmul_s32(v_src0, v_weight0);
+      //v_src1[0] = v_src1[0] * v_weight1[0];
+      //v_src1[1] = v_src1[1] * v_weight1[1];
+      v_src1 = vmul_s32(v_src1, v_weight1);
+
+      // Vector accross vector
+      //gray = v_src0[0] + v_src1[0] + 
+      //     + v_src0[1] + v_src1[1];
+      /* Note that on armv8 NEON has been extended with vaddv instruction
+         which sums up all vector lanes and returs scalar value. This
+         would perfectly fit here. */
+      v_src0 = vadd_s32(v_src0, v_src1);
+      gray = vget_lane_s32(v_src0, 0) +
+           + vget_lane_s32(v_src0, 1);
+      
+      gray >>= (Q_BITS+Q_BITS);
+
+      dst->data[k++] = (uint32_t)gray;
     }
   }
 }
