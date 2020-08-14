@@ -1,0 +1,45 @@
+# ========
+# captured on: Thu Aug 13 23:17:54 2020
+# hostname : rnw
+# os release : 4.14.141-169
+# perf version : 4.14.180.g7a87
+# arch : armv7l
+# nrcpus online : 8
+# nrcpus avail : 8
+# cpudesc : ARMv7 Processor rev 3 (v7l)
+# total memory : 2042436 kB
+# cmdline : /usr/bin/perf record -e cpu-cycles ./bin/scale_neon images/simple/pigs.simple images/simple/pigs_20.simple 2.0 
+# event : name = cpu-cycles:u, , size = 112, { sample_period, sample_freq } = 4000, sample_type = IP|TID|TIME|PERIOD, disabled = 1, inherit = 1, exclude_kernel = 1, mmap = 1, comm = 1, freq = 1, enable_on_exec = 1, task = 1, sample_id_all = 1, exclude_guest = 1, mmap2 = 1, comm_exec = 1
+# CPU_TOPOLOGY info available, use -I to display
+# pmu mappings: breakpoint = 5, armv7_cortex_a15 = 7, software = 1, armv7_cortex_a7 = 6, tracepoint = 2
+# CACHE info available, use -I to display
+# missing features: TRACING_DATA CPUID NUMA_TOPOLOGY BRANCH_STACK GROUP_DESC AUXTRACE STAT 
+# ========
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 291  of event 'cpu-cycles:u'
+# Event count (approx.): 107216374
+#
+# Overhead  Command     Shared Object  Symbol                   
+# ........  ..........  .............  .........................
+#
+    99.12%  scale_neon  scale_neon     [.] scale
+     0.38%  scale_neon  [kernel]       [k] 0xc0114648
+     0.14%  scale_neon  ld-2.27.so     [.] _dl_relocate_object
+     0.12%  scale_neon  libc-2.27.so   [.] fclose@@GLIBC_2.4
+     0.11%  scale_neon  libc-2.27.so   [.] _dl_addr
+     0.07%  scale_neon  ld-2.27.so     [.] strcmp
+     0.04%  scale_neon  ld-2.27.so     [.] _dl_load_cache_lookup
+     0.01%  scale_neon  ld-2.27.so     [.] strlen
+     0.01%  scale_neon  ld-2.27.so     [.] __GI___tunables_init
+     0.00%  scale_neon  ld-2.27.so     [.] _dl_sysdep_start
+     0.00%  scale_neon  ld-2.27.so     [.] _dl_start
+     0.00%  scale_neon  [kernel]       [k] 0xc016a748
+     0.00%  scale_neon  ld-2.27.so     [.] _start
+
+
+#
+# (Tip: Boolean options have negative forms, e.g.: perf report --no-children)
+#
