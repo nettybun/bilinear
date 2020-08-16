@@ -1,0 +1,7 @@
+./perf_scale_fixed_neon_o3.txt:# Event count (approx.): 225666750
+./perf_scale_fixed_scalar_opt_o3.txt:# Event count (approx.): 134553104
+./perf_scale_float_scalar_opt.txt:# Event count (approx.): 428508933
+./perf_scale_float_scalar_opt_o3.txt:# Event count (approx.): 288085782
+./perf_scale_naive.txt:# Event count (approx.): 545390384
+./perf_scale_ref.txt:# Event count (approx.): 307539273
+./perf_scale_ref_o3.txt:# Event count (approx.): 177919106
