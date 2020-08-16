@@ -15,10 +15,10 @@ with their efficient version or reduce memory usage to decrease cache miss rate.
 // #define NAIVE /* simple, easy to understand floatin point implementation from http://www.tech-algorithm.com/articles/bilinear-image-scaling/ */
 // #define OPTIMIZED_SCALAR_FLOATING_POINT /* Optimized floating point implementation */
 // #define SCALAR_FIXED_POINT /* Implementation with introduced operators that to calculation in fixed point domain. */
-// #define OPTIMIZED_SCALAR_FIXED_POINT /* Optimized implementation using fixed point calculations */
+#define OPTIMIZED_SCALAR_FIXED_POINT /* Optimized implementation using fixed point calculations */
 // #define VECTOR_EMU_FLOATING_POINT /* Floating point version showing how vectorized code looks like */
 // #define VECTOR_EMU_FIXED_POINT /* Fixed point version showing how vectorized code looks like */
-#define VECTOR_NEON_FIXED_POINT /* Fixed point version with added NEON intrinsics */
+// #define VECTOR_NEON_FIXED_POINT /* Fixed point version with added NEON intrinsics */
 
 #ifdef NAIVE
 void scale(SIMPLE_Image *src, SIMPLE_Image *dst, float scale_factor)
