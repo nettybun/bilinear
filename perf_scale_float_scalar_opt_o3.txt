@@ -1,0 +1,60 @@
+# ========
+# captured on: Sat Aug 15 00:32:56 2020
+# hostname : rnw
+# os release : 4.14.180-176
+# perf version : 4.14.180.g7a87
+# arch : armv7l
+# nrcpus online : 8
+# nrcpus avail : 8
+# cpudesc : ARMv7 Processor rev 3 (v7l)
+# total memory : 2042436 kB
+# cmdline : /usr/bin/perf record -e cpu-cycles taskset -c 1 ./bin/scale_float_scalar_opt_o3 images/simple/pigs.simple images/simple/pigs_20.simple 2.0 
+# event : name = cpu-cycles:u, , size = 112, { sample_period, sample_freq } = 4000, sample_type = IP|TID|TIME|PERIOD, disabled = 1, inherit = 1, exclude_kernel = 1, mmap = 1, comm = 1, freq = 1, enable_on_exec = 1, task = 1, sample_id_all = 1, exclude_guest = 1, mmap2 = 1, comm_exec = 1
+# CPU_TOPOLOGY info available, use -I to display
+# pmu mappings: breakpoint = 5, armv7_cortex_a15 = 7, software = 1, armv7_cortex_a7 = 6, tracepoint = 2
+# CACHE info available, use -I to display
+# missing features: TRACING_DATA CPUID NUMA_TOPOLOGY BRANCH_STACK GROUP_DESC AUXTRACE STAT 
+# ========
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 888  of event 'cpu-cycles:u'
+# Event count (approx.): 288085782
+#
+# Overhead  Command          Shared Object              Symbol                          
+# ........  ...............  .........................  ................................
+#
+    99.50%  scale_float_sca  scale_float_scalar_opt_o3  [.] scale
+     0.12%  scale_float_sca  [kernel]                   [k] 0xc01146f0
+     0.05%  scale_float_sca  libc-2.27.so               [.] _dl_addr
+     0.05%  taskset          libc-2.27.so               [.] _dl_addr
+     0.04%  taskset          libc-2.27.so               [.] getenv
+     0.03%  scale_float_sca  ld-2.27.so                 [.] do_lookup_x
+     0.03%  taskset          ld-2.27.so                 [.] _dl_relocate_object
+     0.03%  taskset          ld-2.27.so                 [.] __aeabi_uidiv
+     0.02%  taskset          ld-2.27.so                 [.] _dl_check_map_versions
+     0.02%  scale_float_sca  ld-2.27.so                 [.] _dl_lookup_symbol_x
+     0.02%  scale_float_sca  ld-2.27.so                 [.] _dl_relocate_object
+     0.02%  scale_float_sca  ld-2.27.so                 [.] strcmp
+     0.02%  scale_float_sca  [kernel]                   [k] 0xc0114688
+     0.01%  scale_float_sca  ld-2.27.so                 [.] _dl_map_object_deps
+     0.01%  taskset          ld-2.27.so                 [.] _dl_add_to_namespace_list
+     0.01%  scale_float_sca  ld-2.27.so                 [.] __GI___tunables_init
+     0.01%  scale_float_sca  ld-2.27.so                 [.] dl_main
+     0.00%  taskset          ld-2.27.so                 [.] __GI___tunables_init
+     0.00%  scale_float_sca  ld-2.27.so                 [.] _dl_sysdep_start
+     0.00%  taskset          ld-2.27.so                 [.] _dl_sysdep_start
+     0.00%  taskset          libc-2.27.so               [.] execvp
+     0.00%  taskset          ld-2.27.so                 [.] _dl_start
+     0.00%  taskset          libc-2.27.so               [.] _int_free
+     0.00%  taskset          [kernel]                   [k] 0xc0114688
+     0.00%  taskset          libc-2.27.so               [.] cfree@GLIBC_2.4
+     0.00%  taskset          libc-2.27.so               [.] sched_setaffinity@@GLIBC_2.4
+     0.00%  taskset          taskset                    [.] 0x00001598
+     0.00%  taskset          taskset                    [.] 0x00001894
+
+
+#
+# (Tip: If you have debuginfo enabled, try: perf report -s sym,srcline)
+#
